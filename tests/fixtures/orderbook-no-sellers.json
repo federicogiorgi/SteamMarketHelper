@@ -1,0 +1,21 @@
+{
+  "data": {
+    "success": true,
+    "data": {
+      "amtMaxBuyOrder": 182992,
+      "amtMinSellOrder": null,
+      "eCurrency": 3,
+      "cBuyOrders": 26083,
+      "cSellOrders": 0,
+      "rgCompactBuyOrders": [
+        182992,
+        1,
+        180892,
+        1,
+        176557,
+        1
+      ],
+      "rgCompactSellOrders": []
+    }
+  }
+}

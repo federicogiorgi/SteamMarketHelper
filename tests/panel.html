@@ -1,0 +1,257 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Steam Market Helper &mdash; panel preview</title>
+<style>
+  body{font:14px/1.6 system-ui,sans-serif;background:#1b2838;color:#c7d5e0;margin:0;padding:26px;min-height:100vh}
+  h1{font-size:17px;margin:0 0 6px}
+  p{color:#8f98a0;max-width:70ch;margin:0 0 10px}
+  code{background:#16202d;padding:1px 5px;border-radius:3px;font-size:12.5px}
+  #probe{margin-top:18px;font-family:Consolas,monospace;font-size:12.5px}
+  #probe div{padding:4px 9px;border-left:3px solid;margin:3px 0;background:#16202d}
+  .ok{border-color:#5c7e10}.bad{border-color:#a44;background:#2a1a1a}
+
+  /*
+   * Shot mode (?shot=inventory | ?shot=listings) un-pins the panel from the
+   * corner and drops the surrounding page, so the README screenshots can be
+   * taken from the real component rather than mocked up in an image editor.
+   */
+  body.shot{padding:20px;background:#16202d;min-height:0;display:inline-block}
+  body.shot h1, body.shot p, body.shot #probe{display:none}
+  body.shot .smh-panel{position:static;box-shadow:none;max-height:none}
+  /* Let everything grow to its full height: a screenshot of a scrollbar is a
+     screenshot of a scrollbar, not of the content behind it. */
+  body.shot .smh-body,
+  body.shot .smh-list,
+  body.shot .smh-log{max-height:none;overflow:visible}
+</style>
+
+<h1>Panel preview</h1>
+<p>
+  Renders the real panels with no Steam and no login, so layout can be
+  eyeballed and the README screenshots can be taken from the actual component.
+  The buttons will fail if pressed &mdash; there is nothing behind them here.
+</p>
+<p>
+  <code>?shot=inventory</code> or <code>?shot=listings</code> renders one panel
+  alone, populated, ready to capture.
+</p>
+<div id="probe"></div>
+
+<script>
+window.__SMH_TEST__ = {};
+window.g_rgWalletInfo = {
+  wallet_currency: 3, wallet_fee: '1', wallet_fee_base: '0',
+  wallet_fee_percent: '0.05', wallet_fee_minimum: '1',
+  wallet_publisher_fee_percent_default: '0.10'
+};
+window.GetCurrencyCode = () => 'EUR';
+window.g_steamID = '76561197960435530';
+</script>
+
+<script src="../steam-market-helper.user.js"></script>
+
+<script>
+const T = window.__SMH_TEST__;
+const probe = document.getElementById('probe');
+const shot = new URLSearchParams(location.search).get('shot');
+
+function line(ok, text){
+  const d = document.createElement('div');
+  d.className = ok ? 'ok' : 'bad';
+  d.textContent = (ok ? 'OK    ' : 'BAD   ') + text;
+  probe.appendChild(d);
+}
+
+if (shot === 'inventory') {
+  document.body.className = 'shot';
+  T.renderInventoryPanel();
+} else {
+  if (shot === 'listings') document.body.className = 'shot';
+  T.renderMarketPanel();
+}
+
+// ---------------------------------------------------------------- assertions
+
+if (!shot) {
+  const foot = document.querySelector('.smh-foot');
+  const ver = foot.querySelector('.smh-ver');
+
+  line(!!ver, 'the footer shows a version');
+  line(ver && ver.textContent === 'v' + T.VERSION,
+       'footer version matches the VERSION constant (' + (ver && ver.textContent) + ')');
+
+  // The donate link was removed. PayPal's /donate/ endpoint refuses Personal
+  // accounts, so the button only ever produced an error page -- worse than
+  // nothing, since a broken donate link reads as a broken project.
+  line(!foot.querySelector('a'), 'no donate link remains in the footer');
+  // Scope this to the panel. Checking the whole document finds the word in
+  // this test's own labels and fails on its own explanation.
+  line(!/paypal/i.test(document.querySelector('.smh-panel').innerHTML),
+       'no PayPal URL left anywhere in the panel');
+
+  const btns = [...document.querySelectorAll('.smh-btn')].map(b => ({t: b.textContent, d: b.disabled}));
+  line(btns.length === 4, 'the listings panel has its four buttons');
+  line(btns[0] && !btns[0].d, 'Scan is enabled on load');
+  line(btns.slice(1).every(b => b.d), 'Stop, Relist and Remove are disabled until a scan has run');
+
+  const opts = [...document.querySelectorAll('.smh-opt')].map(e => e.textContent.trim());
+  line(opts.some(o => /Show all listings/.test(o)), 'the show-all option is present');
+}
+
+// ------------------------------------------------------------- shot dressing
+
+/*
+ * Populate the panel so the screenshot shows the tool doing something. The
+ * numbers mirror a real run rather than being invented, so the README is not
+ * advertising behaviour the tool does not have.
+ */
+/*
+ * autoExpand() runs on load and cannot reach Steam from here, so it drops a
+ * failure line into the log a moment later. That is correct behaviour and the
+ * wrong thing to photograph, so the dressing waits for it, clears, and then
+ * writes -- rather than writing first and being overwritten.
+ */
+function dress() {
+  document.querySelector('.smh-log').innerHTML = '';
+
+if (shot === 'listings') {
+  const sum = document.querySelector('.smh-sum');
+  sum.style.display = 'flex';
+  sum.innerHTML =
+    '<div class="smh-chip smh-fair">13<small>fair</small></div>' +
+    '<div class="smh-chip smh-high">42<small>too high</small></div>' +
+    '<div class="smh-chip smh-low">0<small>too low</small></div>' +
+    '<div class="smh-chip smh-unknown">0<small>unknown</small></div>';
+
+  const rows = [
+    ['Combat Pants (Black)', '€0.05', '€0.02'], ['Bloody Combat Pants', '€0.05', '€0.02'],
+    ['Loafers (Brown)', '€0.05', '€0.02'],      ['Tank Top (Gray)', '€0.05', '€0.02'],
+    ['Long Sleeved T-shirt (Black)', '€0.05', '€0.02'], ['Cargo Pants (Beige)', '€0.05', '€0.03'],
+    ['Psi Operative', '€0.05', '€0.02'],        ['The Horatio', '€0.05', '€0.03'],
+    ['Warlady Khan', '€0.05', '€0.03']
+  ];
+  const list = document.querySelector('.smh-list');
+  list.style.display = 'block';
+  list.innerHTML = rows.map(([n, a, b]) =>
+    `<div class="smh-item"><i class="smh-dot" style="background:#a44"></i>` +
+    `<span class="smh-nm">${n}</span><span class="smh-pr">${a} &rarr; ${b}</span></div>`).join('');
+
+  [['55 active sell listings.', ''], ['Showing all 55 listings on the page.', 'smh-s'],
+   ['Checking 49 distinct items...', ''], ['Fair 13, too high 42, too low 0, unknown 0.', 'smh-s']]
+    .forEach(([t, c]) => {
+      const d = document.createElement('div'); d.className = c; d.textContent = '[12:10:37] ' + t;
+      document.querySelector('.smh-log').appendChild(d);
+    });
+  document.querySelector('.smh-status').textContent = 'Scan complete';
+  document.querySelector('.smh-bar i').style.width = '100%';
+}
+
+if (shot === 'inventory') {
+  [['Reading inventory 753/6...', ''], ['27 items, 6 marketable.', ''],
+   ['Pricing 5 distinct items (6 to list)...', ''],
+   ['Listed Penultimo at €0.04 (you get €0.02)', 'smh-s'],
+   ['Listed Tony Starch at €0.03 (you get €0.01)', 'smh-s'],
+   ['Listed Night Terror at €0.03 (you get €0.01)', 'smh-s']]
+    .forEach(([t, c]) => {
+      const d = document.createElement('div'); d.className = c; d.textContent = '[12:18:09] ' + t;
+      document.querySelector('.smh-log').appendChild(d);
+    });
+  document.querySelector('.smh-status').textContent = 'Listing 4 of 6...';
+  document.querySelector('.smh-bar i').style.width = '66%';
+}
+}
+
+if (shot) {
+  // Long enough for the failed autoExpand fetch to have logged and settled.
+  setTimeout(dress, 1200);
+}
+
+/*
+ * Capture the panel to a PNG for the README, at 2x for legibility on a
+ * high-DPI screen.
+ *
+ * The panel is drawn into an SVG <foreignObject> and rasterised through a
+ * canvas, so the picture in the docs comes from the component itself rather
+ * than from a mock-up that will quietly stop resembling it. There are no
+ * external images in the panel, so nothing taints the canvas.
+ *
+ * Called from the test driver; harmless and unused otherwise.
+ */
+window.capturePanel = async function (name, scale) {
+  scale = scale || 2;
+  const panel = document.querySelector('.smh-panel');
+  const r = panel.getBoundingClientRect();
+  const w = Math.ceil(r.width), h = Math.ceil(r.height);
+
+  const css = [...document.querySelectorAll('style')].map(s => s.textContent).join('\n');
+  const clone = panel.cloneNode(true);
+  clone.style.position = 'static';
+  clone.style.boxShadow = 'none';
+
+  /*
+   * Expand the scrolling regions on the CLONE, inline.
+   *
+   * The `body.shot` rules in this page's stylesheet do not reach inside the
+   * foreignObject -- there is no <body> in there, so those selectors match
+   * nothing and the clone renders clipped with scrollbars while the live panel
+   * next to it is fully expanded. The height comes from the live panel, so the
+   * result was a clipped panel above a slab of dead space.
+   */
+  clone.style.maxHeight = 'none';
+  clone.querySelectorAll('.smh-body, .smh-list, .smh-log').forEach((el) => {
+    el.style.maxHeight = 'none';
+    el.style.overflow = 'visible';
+  });
+
+  /*
+   * Form state is a DOM property, not an attribute, so cloning loses it: every
+   * ticked box comes out unticked and every number field comes out blank. The
+   * first capture showed the panel with all its options off, which is a picture
+   * of something the tool never does. Reflect the live state into attributes
+   * before serialising.
+   */
+  const liveInputs = panel.querySelectorAll('input');
+  clone.querySelectorAll('input').forEach((el, i) => {
+    const live = liveInputs[i];
+    if (!live) return;
+    if (live.type === 'checkbox' || live.type === 'radio') {
+      if (live.checked) el.setAttribute('checked', 'checked');
+      else el.removeAttribute('checked');
+    } else {
+      el.setAttribute('value', live.value);
+    }
+  });
+
+  /*
+   * XMLSerializer, not outerHTML. A foreignObject is parsed as XML, and
+   * outerHTML emits HTML: the panel's <input type="checkbox"> comes out
+   * unclosed and the whole SVG fails to parse, with no error beyond the image
+   * refusing to load.
+   */
+  const markup = new XMLSerializer().serializeToString(clone);
+
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">` +
+    `<foreignObject width="100%" height="100%">` +
+    `<div xmlns="http://www.w3.org/1999/xhtml">` +
+    `<style><![CDATA[${css}]]></style>${markup}</div>` +
+    `</foreignObject></svg>`;
+
+  const img = new Image();
+  await new Promise((res, rej) => {
+    img.onload = res; img.onerror = () => rej(new Error('svg render failed'));
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  });
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w * scale; canvas.height = h * scale;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+  ctx.drawImage(img, 0, 0);
+
+  const res = await fetch('/save?name=' + encodeURIComponent(name), {
+    method: 'POST', body: canvas.toDataURL('image/png')
+  });
+  return await res.text();
+};
+</script>

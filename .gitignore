@@ -1,0 +1,11 @@
+node_modules/
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Captured Steam payloads. These come from a logged-in session and can carry
+# your steamid, asset ids and listing ids -- keep them out of the repo.
+tests/fixtures/*.local.json
+*.har

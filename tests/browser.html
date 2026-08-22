@@ -1,0 +1,278 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Steam Market Helper &mdash; browser tests</title>
+<style>
+  body{font:14px/1.5 system-ui,sans-serif;background:#1b2838;color:#c7d5e0;margin:0;padding:24px}
+  h1{font-size:17px;margin:0 0 4px}
+  p.sub{color:#8f98a0;margin:0 0 18px;max-width:74ch}
+  .t{padding:5px 10px;border-left:3px solid;margin:3px 0;background:#16202d;font-family:Consolas,monospace;font-size:12.5px}
+  .ok{border-color:#5c7e10}.bad{border-color:#a44;background:#2a1a1a}
+  .exp{color:#8f98a0;display:block;padding-left:14px;white-space:pre}
+  h2{font-size:13px;color:#8f98a0;margin:18px 0 6px;text-transform:uppercase;letter-spacing:.05em}
+  #sum{margin-top:20px;padding:10px 14px;border-radius:4px;font-weight:700}
+  code{background:#101822;padding:1px 4px;border-radius:3px}
+</style>
+
+<h1>Steam Market Helper &mdash; browser tests</h1>
+<p class="sub">
+  Covers the parts that need a real <code>DOMParser</code> and so cannot run
+  under <code>node tests/run.js</code>: reading a page of
+  <code>/market/mylistings</code>, and pulling the buyer price out of a listing
+  row. Serve this folder over HTTP and open the page &mdash; no Steam login needed.
+</p>
+<div id="out"></div>
+<div id="sum"></div>
+
+<script>
+/*
+ * Fixture: one page of /market/mylistings.
+ *
+ * THE PRICE MARKUP BELOW IS COPIED VERBATIM FROM A LIVE RESPONSE (17 Aug 2026)
+ * with the ids replaced by invented ones. That matters more than it sounds.
+ *
+ * The first version of this fixture was hand-built from what the parser
+ * expected, and it passed every check while the parser was badly broken --
+ * because both sides were written from the same wrong belief. Steam's Market
+ * Beta UI had replaced the old two-span price
+ *
+ *     <span class="market_listing_price market_listing_price_with_fee">0,35EUR</span>
+ *     <span class="market_listing_price market_listing_price_without_fee">0,30EUR</span>
+ *
+ * with a single cell holding both numbers, the seller's in brackets. The old
+ * selector matched nothing, the fallback returned the text "0,05EUR (0,03EUR)",
+ * and a five-cent listing parsed as fifty euros and three cents.
+ *
+ * A fixture that agrees with the parser proves only that they agree. So both
+ * layouts appear below and the beta rows are real markup. If this ever stops
+ * matching a live account, RE-CAPTURE it rather than adjusting it to pass.
+ *
+ * The awkward cases are deliberate: a listing awaiting mobile confirmation, one
+ * with no hover entry (identity has to come from the cancel button instead), a
+ * buy-order row, and a second appid.
+ */
+
+// Real beta-UI price cell. Whitespace and nesting as Steam sends them.
+const betaPrice = (buyer, seller) => `
+  <div class="market_listing_right_cell market_listing_my_price">
+    <span class="market_table_value">
+      <span class="market_listing_price">
+        <span style="display: inline-block">
+          <span title="This is the price the buyer pays."> ${buyer} </span>
+          <br>
+          <span title="This is how much you will receive." style="color: #AFAFAF"> (${seller}) </span>
+        </span>
+      </span>
+    </span>
+  </div>`;
+
+// The layout Steam used before the beta, kept so the parser stays backward
+// compatible for anyone not yet moved over.
+const legacyPrice = (buyer, seller) => `
+  <div class="market_listing_my_price">
+    <span class="market_listing_price market_listing_price_with_fee">${buyer}</span>
+    <span class="market_listing_price market_listing_price_without_fee">${seller}</span>
+  </div>`;
+
+const removeBtn = (listingId, appid, ctx, assetId) =>
+  `<a class="item_market_action_button" href="javascript:RemoveMarketListing('mylisting', '${listingId}', ${appid}, '${ctx}', '${assetId}')">Remove</a>`;
+
+const FIXTURE = {
+  success: true,
+  total_count: 5,
+  assets: {
+    "753": { "6": {
+      "28932154871": { market_hash_name: "292030-Geralt",  name: "Geralt",  market_fee: 0.10 },
+      "28932154872": { market_hash_name: "292030-Yennefer", name: "Yennefer", market_fee: 0.10 },
+      "28932154874": { market_hash_name: "292030-Ciri",    name: "Ciri",    market_fee: 0.10 },
+      "28932154875": { market_hash_name: "292030-Triss",   name: "Triss",   market_fee: 0.10 }
+    }},
+    "730": { "2": {
+      "28932154873": { market_hash_name: "AK-47 | Redline (Field-Tested)", name: "AK-47 | Redline" }
+    }}
+  },
+
+  // Note: no hover entry for 4649823149 -- that row's identity must come from
+  // its cancel button instead.
+  hovers: `
+    CreateItemHoverFromContainer( g_rgAssets, 'mylisting_4649823145_image', 753, '6', '28932154871', 0 );
+    CreateItemHoverFromContainer( g_rgAssets, 'mylisting_4649823146_image', 753, '6', '28932154872', 0 );
+    CreateItemHoverFromContainer( g_rgAssets, 'mylisting_4649823147_image', 730, '2', '28932154873', 0 );
+    CreateItemHoverFromContainer( g_rgAssets, 'mylisting_4649823148_image', 753, '6', '28932154874', 0 );
+  `,
+
+  results_html: `
+    <div class="market_listing_row market_recent_listing_row" id="mylisting_4649823145">
+      ${betaPrice('0,05&#8364;', '0,03&#8364;')}
+      ${removeBtn('4649823145', 753, '6', '28932154871')}
+    </div>
+
+    <div class="market_listing_row market_recent_listing_row" id="mylisting_4649823146">
+      ${betaPrice('1.234,56&#8364;', '1.073,53&#8364;')}
+      ${removeBtn('4649823146', 753, '6', '28932154872')}
+    </div>
+
+    <div class="market_listing_row market_recent_listing_row" id="mylisting_4649823147">
+      ${legacyPrice('35,50&#8364;', '30,87&#8364;')}
+      ${removeBtn('4649823147', 730, '2', '28932154873')}
+    </div>
+
+    <!-- Awaiting a mobile confirmation. Not live, cannot be cancelled, skip it. -->
+    <div class="market_listing_row market_recent_listing_row" id="mylisting_4649823148">
+      ${betaPrice('0,25&#8364;', '0,22&#8364;')}
+      <a class="item_market_action_button" href="javascript:CancelMarketListingConfirmation( '4649823148' );">Cancel</a>
+    </div>
+
+    <!-- No hover entry. Identity must be recovered from the cancel button. -->
+    <div class="market_listing_row market_recent_listing_row" id="mylisting_4649823149">
+      ${betaPrice('0,09&#8364;', '0,07&#8364;')}
+      ${removeBtn('4649823149', 753, '6', '28932154875')}
+    </div>
+
+    <!-- A buy order. Different id prefix, must not be read as a listing. -->
+    <div class="market_listing_row" id="mybuyorder_9911223344">
+      <span class="market_listing_price">0,05&#8364;</span>
+      <a class="item_market_action_button" href="javascript:CancelMarketBuyOrder( '9911223344' );">Cancel</a>
+    </div>
+  `
+};
+
+let pass = 0, fail = 0;
+const out = document.getElementById('out');
+
+function section(t){ const h=document.createElement('h2'); h.textContent=t; out.appendChild(h); }
+function check(name, actual, expected){
+  const a=JSON.stringify(actual), e=JSON.stringify(expected), ok=a===e;
+  ok?pass++:fail++;
+  const d=document.createElement('div');
+  d.className='t '+(ok?'ok':'bad');
+  d.textContent=(ok?'PASS  ':'FAIL  ')+name;
+  if(!ok){
+    const s=document.createElement('span');
+    s.className='exp';
+    s.textContent='expected '+e+'\ngot      '+a;
+    d.appendChild(s);
+  }
+  out.appendChild(d);
+}
+const checkTrue=(n,v)=>check(n, Boolean(v), true);
+
+window.__SMH_TEST__ = {};
+window.g_rgWalletInfo = {
+  wallet_currency: 3, wallet_fee: '1', wallet_fee_base: '0',
+  wallet_fee_percent: '0.05', wallet_fee_minimum: '1',
+  wallet_publisher_fee_percent_default: '0.10'
+};
+window.GetCurrencyCode = () => 'EUR';
+</script>
+
+<script src="../steam-market-helper.user.js"></script>
+
+<script>
+const T = window.__SMH_TEST__;
+
+if (!T.parseMyListingsPage) {
+  const s = document.getElementById('sum');
+  s.style.background = '#a44'; s.style.color = '#fff';
+  s.textContent = 'Could not load the script. Serve this folder over HTTP and reload.';
+} else {
+  const rowFrom = (html) => new DOMParser()
+    .parseFromString('<table><tbody>'+html+'</tbody></table>', 'text/html')
+    .querySelector('.market_listing_row');
+
+  // ---------------------------------------------------------------------
+  section('extractBuyerPrice — the beta-UI regression');
+
+  // The bug in one line: this cell holds two prices, and the buyer's is first.
+  const beta = rowFrom('<div class="market_listing_row" id="mylisting_1">'+betaPrice('0,05&#8364;','0,03&#8364;')+'</div>');
+  check('beta cell yields the BUYER price, not both mashed together',
+        T.extractBuyerPrice(beta), 5);
+  checkTrue('...and specifically not 5003, which is what 1.0.0 shipped',
+        T.extractBuyerPrice(beta) !== 5003);
+
+  const betaBig = rowFrom('<div class="market_listing_row" id="mylisting_2">'+betaPrice('1.234,56&#8364;','1.073,53&#8364;')+'</div>');
+  check('beta cell with thousands separators', T.extractBuyerPrice(betaBig), 123456);
+
+  const legacy = rowFrom('<div class="market_listing_row" id="mylisting_3">'+legacyPrice('35,50&#8364;','30,87&#8364;')+'</div>');
+  check('legacy two-span layout still works', T.extractBuyerPrice(legacy), 3550);
+
+  const bare = rowFrom('<div class="market_listing_row" id="mylisting_4"><span class="market_listing_price">0,42&#8364;</span></div>');
+  check('a single bare price', T.extractBuyerPrice(bare), 42);
+
+  const none = rowFrom('<div class="market_listing_row" id="mylisting_5"><span>nothing here</span></div>');
+  check('no price element at all', T.extractBuyerPrice(none), null);
+
+  // ---------------------------------------------------------------------
+  section('identityFromRow — fallback when hovers is missing');
+
+  const withBtn = rowFrom('<div class="market_listing_row" id="mylisting_6">'+removeBtn('6','753','6','999')+'</div>');
+  check('reads appid/contextid/assetid off the cancel button',
+        T.identityFromRow(withBtn), { appid:'753', contextid:'6', assetid:'999' });
+  check('no button, no identity', T.identityFromRow(none), null);
+
+  // ---------------------------------------------------------------------
+  section('parseMyListingsPage');
+
+  const rows = T.parseMyListingsPage(FIXTURE, FIXTURE.assets);
+
+  check('finds the four live listings', rows.length, 4);
+  check('skips the one awaiting mobile confirmation',
+        rows.some(r => r.listingId === '4649823148'), false);
+  check('ignores buy-order rows', rows.some(r => r.listingId === '9911223344'), false);
+
+  const byId = Object.fromEntries(rows.map(r => [r.listingId, r]));
+
+  check('reads appid from hovers', byId['4649823145'].appid, 753);
+  check('reads contextid', byId['4649823145'].contextid, '6');
+  check('reads assetid', byId['4649823145'].assetid, '28932154871');
+  check('reads the name from the assets JSON', byId['4649823145'].market_hash_name, '292030-Geralt');
+  check('prices the beta row correctly', byId['4649823145'].buyerPrice, 5);
+  check('prices the legacy row correctly', byId['4649823147'].buyerPrice, 3550);
+
+  checkTrue('recovers the row that has no hover entry', !!byId['4649823149']);
+  check('...via the cancel button', byId['4649823149']?.assetid, '28932154875');
+  check('...and still prices it', byId['4649823149']?.buyerPrice, 9);
+
+  check('picks up the CS item on appid 730', byId['4649823147']?.appid, 730);
+  check('with its own contextid', byId['4649823147']?.contextid, '2');
+
+  // ---------------------------------------------------------------------
+  section('degenerate input');
+
+  check('empty payload', T.parseMyListingsPage({ hovers:'', results_html:'' }, {}), []);
+  check('rows but no assets',
+        T.parseMyListingsPage({ hovers: FIXTURE.hovers, results_html: FIXTURE.results_html }, {}), []);
+
+  // ---------------------------------------------------------------------
+  section('expandListingsOnPage');
+
+  // Nothing to expand into: must report rather than throw.
+  check('no Steam container -> reports, does not throw',
+        T.expandListingsOnPage([FIXTURE]).ok, false);
+
+  // Now give it the container Steam would have provided.
+  const host = document.createElement('div');
+  host.id = 'tabContentsMyActiveMarketListingsRows';
+  host.innerHTML = '<div class="market_listing_row" id="mylisting_old">stale</div>';
+  document.body.appendChild(host);
+  const paging = document.createElement('div');
+  paging.id = 'tabContentsMyActiveMarketListings_ctn';
+  document.body.appendChild(paging);
+
+  const res = T.expandListingsOnPage([FIXTURE, FIXTURE]);
+  check('expands into the container', res.ok, true);
+  check('deduplicates rows repeated across pages', res.added, 6);
+  check('the container really holds them',
+        host.querySelectorAll('.market_listing_row').length, 6);
+  check('the ten-at-a-time rows are replaced, not appended to',
+        host.querySelector('#mylisting_old'), null);
+  check('Steam pagination is hidden, since it would now be lying',
+        paging.style.display, 'none');
+
+  host.remove(); paging.remove();
+
+  const sum = document.getElementById('sum');
+  sum.style.background = fail ? '#a44' : '#4c6b22';
+  sum.style.color = '#fff';
+  sum.textContent = pass + ' passed, ' + fail + ' failed';
+}
+</script>
