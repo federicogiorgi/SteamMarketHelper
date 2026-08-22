@@ -71,9 +71,8 @@ did not take — see [the installation guide](INSTALL.md).
 
 ### Selling
 
-Open your inventory, pick the game whose items you want to sell (Steam puts it
-in the URL as `#753_6`), and press **Sell everything** or
-**Sell duplicates only**.
+Open your inventory, pick the game whose items you want to sell, and press
+**Sell everything** or **Sell duplicates only**.
 
 The script reads the inventory, groups by item so twelve copies of one card cost
 one price lookup rather than twelve, and lists each at one cent under the
