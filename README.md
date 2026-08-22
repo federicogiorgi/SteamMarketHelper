@@ -62,8 +62,7 @@ or the panel does not appear.
 The script runs on two pages, and nowhere else:
 
 - **Your inventory** — `https://steamcommunity.com/id/<your vanity name>/inventory`,
-  or `https://steamcommunity.com/profiles/<your 17-digit steamid>/inventory` if
-  you never set a vanity name.
+  or `https://steamcommunity.com/profiles/<your 17-digit steamid>/inventory`
 - **The market** — [`https://steamcommunity.com/market/`](https://steamcommunity.com/market/)
 
 Open either one and the panel appears bottom-right. If it does not, the install
