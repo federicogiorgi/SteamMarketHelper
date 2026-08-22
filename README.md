@@ -46,7 +46,8 @@ Five things, and nothing else:
    and confirm the install.
 
 A panel appears bottom-right on your inventory page and on
-`steamcommunity.com/market`. Drag it by its title bar; click the `–` to collapse.
+[`steamcommunity.com/market`](https://steamcommunity.com/market/). Drag it by
+its title bar; click the `–` to collapse.
 
 **Uninstall:** extension icon → the script's remove/trash icon → confirm. Nothing
 is left behind on Steam.
@@ -63,7 +64,7 @@ The script runs on two pages, and nowhere else:
 - **Your inventory** — `https://steamcommunity.com/id/<your vanity name>/inventory`,
   or `https://steamcommunity.com/profiles/<your 17-digit steamid>/inventory` if
   you never set a vanity name.
-- **The market** — `https://steamcommunity.com/market/`
+- **The market** — [`https://steamcommunity.com/market/`](https://steamcommunity.com/market/)
 
 Open either one and the panel appears bottom-right. If it does not, the install
 did not take — see [the installation guide](INSTALL.md).
@@ -84,8 +85,8 @@ you confirm them in bulk, which makes a hundred listings tolerable.
 
 ### Listings
 
-On `steamcommunity.com/market`, press **Scan my listings**. Each listing gets a
-colour:
+On [`steamcommunity.com/market`](https://steamcommunity.com/market/), press
+**Scan my listings**. Each listing gets a colour:
 
 | | meaning | what it costs you |
 |---|---|---|
