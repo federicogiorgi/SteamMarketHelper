@@ -646,15 +646,27 @@
      * and away the most common thing anyone bulk-sells.
      */
     function currentInventoryTarget() {
+        let appid = 753;
+        let contextid = '6';
+
         const hash = window.location.hash.match(/#(\d+)_(\d+)/);
         if (hash) {
-            return { appid: parseInt(hash[1], 10), contextid: hash[2] };
+            appid = parseInt(hash[1], 10);
+            contextid = hash[2];
+        } else {
+            const inv = W.g_ActiveInventory;
+            if (inv && inv.m_appid) {
+                appid = parseInt(inv.m_appid, 10);
+                contextid = String(inv.m_contextid);
+            }
         }
-        const inv = W.g_ActiveInventory;
-        if (inv && inv.m_appid) {
-            return { appid: parseInt(inv.m_appid, 10), contextid: String(inv.m_contextid) };
+
+        // Sanitize invalid or zero context IDs
+        if (!contextid || contextid === '0' || contextid === 'undefined') {
+            contextid = appid === 753 ? '6' : '2';
         }
-        return { appid: 753, contextid: '6' };
+
+        return { appid, contextid };
     }
 
     /*
@@ -667,8 +679,13 @@
         let startAssetId = null;
         let page = 0;
 
+        // Fallback guard against 0 context IDs
+        const validContextId = (!contextid || contextid === '0' || contextid === 0)
+            ? (appid == 753 ? '6' : '2')
+            : contextid;
+
         for (;;) {
-            let url = `${ORIGIN}/inventory/${steamId}/${appid}/${contextid}?l=english&count=2000`;
+            let url = `${ORIGIN}/inventory/${steamId}/${appid}/${validContextId}?l=english&count=2000`;
             if (startAssetId) {
                 url += `&start_assetid=${startAssetId}`;
             }
