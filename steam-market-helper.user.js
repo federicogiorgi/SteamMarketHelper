@@ -735,18 +735,23 @@
      * same hash name are interchangeable to a buyer.
      */
     function filterDuplicates(items) {
-        const seen = new Map();
-        const out = [];
+    const seen = new Map();
+    const out = [];
 
-        for (const item of items) {
-            const n = seen.get(item.market_hash_name) || 0;
-            if (n >= 1) {
-                out.push(item);
-            }
-            seen.set(item.market_hash_name, n + 1);
+    for (const item of items) {
+        const n = seen.get(item.market_hash_name) || 0;
+
+        // Keep the first copy regardless of marketability.
+        // Only sell subsequent copies if they are marketable.
+        if (n >= 1 && item.marketable) {
+            out.push(item);
         }
-        return out;
+
+        seen.set(item.market_hash_name, n + 1);
     }
+
+    return out;
+}
 
     // -------------------------------------------------------------- listings
 
@@ -1471,12 +1476,14 @@
                     UI.status(`Reading inventory... ${n} items`);
                 });
 
-                let items = all.filter((i) => i.marketable);
-                UI.log(`${all.length} items, ${items.length} marketable.`);
+                let items = all;
+                UI.log(`${all.length} items, ${all.filter((i) => i.marketable).length} marketable.`);
 
                 if (onlyDuplicates) {
                     items = filterDuplicates(items);
-                    UI.log(`${items.length} duplicates (one of each kept).`);
+                    UI.log(`${items.length} marketable duplicates (one of each kept).`);
+                } else {
+                    items = items.filter((i) => i.marketable);
                 }
 
                 if (items.length > settings.maxItemsPerRun) {
